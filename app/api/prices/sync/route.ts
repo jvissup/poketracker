@@ -2,9 +2,30 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getCardsByIds, getBestMarketPrice } from "@/lib/pokemon-tcg";
 
+// Top-level type so it's always in scope
+type SnapshotInput = {
+  cardId: string;
+  cardName: string;
+  setId: string;
+  setName: string;
+  normalLow: number | null;
+  normalMid: number | null;
+  normalHigh: number | null;
+  normalMarket: number | null;
+  holofoilLow: number | null;
+  holofoilMid: number | null;
+  holofoilHigh: number | null;
+  holofoilMarket: number | null;
+  reverseHoloLow: number | null;
+  reverseHoloMid: number | null;
+  reverseHoloHigh: number | null;
+  reverseHoloMarket: number | null;
+  marketPrice: number | null;
+};
+
 // POST /api/prices/sync
 // Fetches latest prices from Pokemon TCG API for all cards in the collection
-// and stores a snapshot in PriceSnapshot table.
+// and stores a snapshot in the PriceSnapshot table.
 export async function POST() {
   try {
     const items = await prisma.collectionItem.findMany({
@@ -16,9 +37,9 @@ export async function POST() {
     }
 
     // Deduplicate card IDs
-    const uniqueIds = [...new Set(items.map((i) => i.cardId))];
+    const uniqueIds = Array.from(new Set(items.map((i) => i.cardId)));
 
-    // Fetch in batches of 100 (API limit)
+    // Fetch in batches of 100
     const batchSize = 100;
     const allCards = [];
     for (let i = 0; i < uniqueIds.length; i += batchSize) {
@@ -27,39 +48,38 @@ export async function POST() {
       allCards.push(...cards);
     }
 
-    // Build a map for quick lookup
     const cardMap = new Map(allCards.map((c) => [c.id, c]));
 
-    // Create price snapshots
-    const snapshots = uniqueIds
-      .map((cardId) => {
-        const card = cardMap.get(cardId);
-        if (!card) return null;
+    const snapshots: SnapshotInput[] = [];
 
-        const prices = card.tcgplayer?.prices;
-        const item = items.find((i) => i.cardId === cardId)!;
+    for (const cardId of uniqueIds) {
+      const card = cardMap.get(cardId);
+      if (!card) continue;
 
-        return {
-          cardId,
-          cardName: item.cardName,
-          setId: item.setId,
-          setName: item.setName,
-          normalLow: prices?.normal?.low ?? null,
-          normalMid: prices?.normal?.mid ?? null,
-          normalHigh: prices?.normal?.high ?? null,
-          normalMarket: prices?.normal?.market ?? null,
-          holofoilLow: prices?.holofoil?.low ?? null,
-          holofoilMid: prices?.holofoil?.mid ?? null,
-          holofoilHigh: prices?.holofoil?.high ?? null,
-          holofoilMarket: prices?.holofoil?.market ?? null,
-          reverseHoloLow: prices?.reverseHolofoil?.low ?? null,
-          reverseHoloMid: prices?.reverseHolofoil?.mid ?? null,
-          reverseHoloHigh: prices?.reverseHolofoil?.high ?? null,
-          reverseHoloMarket: prices?.reverseHolofoil?.market ?? null,
-          marketPrice: getBestMarketPrice(card.tcgplayer),
-        };
-      })
-      .filter((s): s is SnapshotInput => s !== null);
+      const prices = card.tcgplayer?.prices;
+      const item = items.find((i) => i.cardId === cardId);
+      if (!item) continue;
+
+      snapshots.push({
+        cardId,
+        cardName: item.cardName,
+        setId: item.setId,
+        setName: item.setName,
+        normalLow: prices?.normal?.low ?? null,
+        normalMid: prices?.normal?.mid ?? null,
+        normalHigh: prices?.normal?.high ?? null,
+        normalMarket: prices?.normal?.market ?? null,
+        holofoilLow: prices?.holofoil?.low ?? null,
+        holofoilMid: prices?.holofoil?.mid ?? null,
+        holofoilHigh: prices?.holofoil?.high ?? null,
+        holofoilMarket: prices?.holofoil?.market ?? null,
+        reverseHoloLow: prices?.reverseHolofoil?.low ?? null,
+        reverseHoloMid: prices?.reverseHolofoil?.mid ?? null,
+        reverseHoloHigh: prices?.reverseHolofoil?.high ?? null,
+        reverseHoloMarket: prices?.reverseHolofoil?.market ?? null,
+        marketPrice: getBestMarketPrice(card.tcgplayer),
+      });
+    }
 
     await prisma.priceSnapshot.createMany({ data: snapshots });
 
