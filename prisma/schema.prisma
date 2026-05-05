@@ -1,0 +1,73 @@
+// This is your Prisma schema file.
+// Learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model CollectionItem {
+  id            String    @id @default(cuid())
+
+  // Card identity (from Pokemon TCG API)
+  cardId        String    // e.g. "sv3-1"
+  cardName      String
+  setId         String
+  setName       String
+  cardNumber    String
+  rarity        String?
+  imageSmall    String?
+  imageLarge    String?
+  supertype     String?   // "Pokémon", "Trainer", "Energy"
+  subtypes      String[]  // ["V", "VMAX"], ["Item"], etc.
+
+  // Ownership details
+  condition     String    @default("NM")  // NM, LP, MP, HP, DMG, PSA10, PSA9, etc.
+  quantity      Int       @default(1)
+  purchasePrice Float?    // what you paid per card
+  notes         String?
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([cardId])
+  @@index([setId])
+}
+
+model PriceSnapshot {
+  id              String   @id @default(cuid())
+
+  // Card identity
+  cardId          String
+  cardName        String
+  setId           String
+  setName         String
+
+  // TCGPlayer prices (all nullable — not every card has every variant)
+  normalLow       Float?
+  normalMid       Float?
+  normalHigh      Float?
+  normalMarket    Float?
+
+  holofoilLow     Float?
+  holofoilMid     Float?
+  holofoilHigh    Float?
+  holofoilMarket  Float?
+
+  reverseHoloLow    Float?
+  reverseHoloMid    Float?
+  reverseHoloHigh   Float?
+  reverseHoloMarket Float?
+
+  // The "best" market price for this card (holofoil > normal > reverseHolo)
+  marketPrice     Float?
+
+  recordedAt      DateTime @default(now())
+
+  @@index([cardId])
+  @@index([recordedAt])
+}
