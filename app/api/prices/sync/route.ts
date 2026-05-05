@@ -59,7 +59,7 @@ export async function POST() {
           marketPrice: getBestMarketPrice(card.tcgplayer),
         };
       })
-      .filter(Boolean) as Parameters<typeof prisma.priceSnapshot.createMany>[0]["data"];
+      .filter((s): s is SnapshotInput => s !== null);
 
     await prisma.priceSnapshot.createMany({ data: snapshots });
 
